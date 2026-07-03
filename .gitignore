@@ -1,0 +1,16 @@
+node_modules/
+dist/
+build/
+.env
+.env.local
+
+# Datos reales de trabajadores / contratos generados: nunca a git
+backend/storage/contracts/**
+!backend/storage/contracts/.gitkeep
+local-samples/
+
+# Contrato de muestra con datos personales reales (DNI, domicilio) usado solo como referencia
+/CONTRATO TORIBIO FALTA MAYO 2026.docx
+/CONTRATO TORIBIO FALTA MAYO 2026.pdf
+
+*.log
