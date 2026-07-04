@@ -21,14 +21,20 @@ ENV NODE_ENV=production
 
 COPY package.json package-lock.json ./
 # --os/--cpu/--libc no alcanzan: esta versión de npm igual instala el binario
-# musl (y wasm32) de sharp junto al glibc que sí necesitamos. Con ambos
-# presentes, la lógica de sharp para elegir el binario nativo se rompe y
-# revienta con un error confuso al hacer require(). Se borran a mano las
-# variantes que no corresponden a esta imagen (Debian bookworm = glibc).
+# musl de sharp junto al glibc que sí necesitamos. Con ambos presentes, la
+# lógica de sharp para elegir el binario nativo se rompe y revienta con un
+# error confuso al hacer require(). Se borran a mano las variantes musl, que
+# no corresponden a esta imagen (Debian bookworm = glibc).
+#
+# @img/sharp-wasm32 NO se borra a propósito: es el fallback universal (WASM,
+# sin dependencia de instrucciones del CPU) que sharp intenta automáticamente
+# cuando el binario nativo linux-x64 no pasa el chequeo _isUsingX64V2() —
+# necesario en VPS con CPU virtual QEMU genérico (sin SSE4.2/v2). No genera
+# el conflicto de arriba porque sharp solo lo prueba como último recurso, no
+# compite con los binarios nativos.
 RUN npm install --omit=dev --os=linux --cpu=x64 --libc=glibc && \
     rm -rf node_modules/@img/sharp-linuxmusl-x64 \
-           node_modules/@img/sharp-libvips-linuxmusl-x64 \
-           node_modules/@img/sharp-wasm32
+           node_modules/@img/sharp-libvips-linuxmusl-x64
 
 COPY --from=builder /app/dist ./dist
 
