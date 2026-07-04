@@ -1,5 +1,8 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { api, apiErrorMessage } from './client';
+import { apiArchivos } from './archivosClient';
+
+const clientes = [api, apiArchivos];
 
 export interface Usuario {
   id: number;
@@ -33,28 +36,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isReady, setIsReady] = useState(false);
 
   useEffect(() => {
-    if (token) {
-      api.defaults.headers.common.Authorization = `Bearer ${token}`;
-    } else {
-      delete api.defaults.headers.common.Authorization;
+    for (const cliente of clientes) {
+      if (token) {
+        cliente.defaults.headers.common.Authorization = `Bearer ${token}`;
+      } else {
+        delete cliente.defaults.headers.common.Authorization;
+      }
     }
     setIsReady(true);
   }, [token]);
 
   useEffect(() => {
-    const interceptor = api.interceptors.response.use(
-      (res) => res,
-      (err) => {
-        if (err.response?.status === 401) {
-          setToken(null);
-          setUsuario(null);
-          localStorage.removeItem(TOKEN_KEY);
-          localStorage.removeItem(USER_KEY);
-        }
-        return Promise.reject(err);
-      },
+    const manejarRespuesta = (res: any) => res;
+    const manejarError = (err: any) => {
+      if (err.response?.status === 401) {
+        setToken(null);
+        setUsuario(null);
+        localStorage.removeItem(TOKEN_KEY);
+        localStorage.removeItem(USER_KEY);
+      }
+      return Promise.reject(err);
+    };
+
+    const interceptores = clientes.map((cliente) =>
+      cliente.interceptors.response.use(manejarRespuesta, manejarError),
     );
-    return () => api.interceptors.response.eject(interceptor);
+    return () => {
+      clientes.forEach((cliente, i) => cliente.interceptors.response.eject(interceptores[i]));
+    };
   }, []);
 
   const login = async (usuarioLogin: string, password: string) => {

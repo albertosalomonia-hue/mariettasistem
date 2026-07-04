@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, apiErrorMessage } from '../api/client';
+import { apiArchivos } from '../api/archivosClient';
 import { useAuth } from '../api/AuthContext';
 import { SignaturePad } from '../components/SignaturePad';
 import type { Contrato } from '../api/types';
@@ -36,7 +37,7 @@ export function MiContratoPage() {
     mutationFn: async (archivo: Blob) => {
       const formData = new FormData();
       formData.append('firma', archivo, 'firma.png');
-      return (await api.post(`/contratos/${contratoQuery.data!.id}/firmar`, formData)).data;
+      return (await apiArchivos.post(`/contratos/${contratoQuery.data!.id}/firmar`, formData)).data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['mi-contrato'] });
@@ -51,7 +52,7 @@ export function MiContratoPage() {
     setAbriendo(true);
     setError(null);
     try {
-      const { data } = await api.get(`/contratos/${contratoQuery.data.id}/pdf`, {
+      const { data } = await apiArchivos.get(`/contratos/${contratoQuery.data.id}/pdf`, {
         responseType: 'blob',
       });
       const blobUrl = URL.createObjectURL(data as Blob);

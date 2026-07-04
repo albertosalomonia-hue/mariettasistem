@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { api } from '../api/client';
+import { apiArchivos } from '../api/archivosClient';
 
 interface AuthImageProps {
   src: string | null | undefined;
@@ -20,7 +20,7 @@ export function AuthImage({ src, alt, className, fallback }: AuthImageProps) {
     let objectUrl: string | null = null;
     let cancelled = false;
 
-    api
+    apiArchivos
       .get(src, { responseType: 'blob' })
       .then((res) => {
         if (cancelled) return;

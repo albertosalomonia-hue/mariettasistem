@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, apiErrorMessage } from '../api/client';
+import { apiArchivos } from '../api/archivosClient';
 import { ApiErrorBanner } from '../components/ApiErrorBanner';
 import { AuthImage } from '../components/AuthImage';
 import type { Empleado, Empresa } from '../api/types';
@@ -243,7 +244,7 @@ function PerfilEmpleadoModal({ empleado, onClose }: { empleado: Empleado; onClos
     mutationFn: async (file: File) => {
       const formData = new FormData();
       formData.append('foto', file);
-      return api.post(`/empleados/${empleado.id}/foto`, formData);
+      return apiArchivos.post(`/empleados/${empleado.id}/foto`, formData);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['empleados'] });

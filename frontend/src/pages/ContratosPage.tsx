@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, apiErrorMessage } from '../api/client';
+import { apiArchivos } from '../api/archivosClient';
 import { descargarArchivo } from '../api/download';
 import { ApiErrorBanner } from '../components/ApiErrorBanner';
 import { ESTADO_BADGE } from '../api/estados';
@@ -90,7 +91,7 @@ export function ContratosPage() {
   const generarMutation = useMutation({
     mutationFn: async () =>
       (
-        await api.post('/contratos', {
+        await apiArchivos.post('/contratos', {
           ...form,
           plantilla_id: Number(form.plantilla_id),
           empleado_id: Number(form.empleado_id),
@@ -107,7 +108,7 @@ export function ContratosPage() {
   });
 
   const eliminarMutation = useMutation({
-    mutationFn: async (id: number) => api.delete(`/contratos/${id}`),
+    mutationFn: async (id: number) => apiArchivos.delete(`/contratos/${id}`),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['contratos'] });
       setContratoAEliminar(null);

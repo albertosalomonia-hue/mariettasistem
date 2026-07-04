@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, apiErrorMessage } from '../api/client';
+import { apiArchivos } from '../api/archivosClient';
 import { ApiErrorBanner } from '../components/ApiErrorBanner';
 import type { Plantilla } from '../api/types';
 
@@ -24,7 +25,7 @@ export function PlantillasPage() {
       formData.append('archivo', file);
       formData.append('nombre', nombre);
       formData.append('descripcion', descripcion);
-      return (await api.post('/plantillas', formData)).data;
+      return (await apiArchivos.post('/plantillas', formData)).data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['plantillas'] });
