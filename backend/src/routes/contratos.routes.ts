@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import fs from 'fs';
 import path from 'path';
+import multer from 'multer';
 import { z } from 'zod';
 import { pool } from '../config/db';
 import {
@@ -10,6 +11,8 @@ import {
   guardarArchivosContrato,
   convertirAPdfConWord,
 } from '../services/contratoGenerator';
+import { estamparFirmaEnPdf } from '../services/firmaService';
+import { fechaHoraCorta } from '../services/fechas';
 import { requireRole } from '../middleware/auth';
 
 export const contratosRouter = Router();
@@ -18,6 +21,16 @@ const esStaffAdministrativo = requireRole('super_admin', 'rrhh', 'gerente', 'sup
 
 const CONTRATOS_DIR = path.join(__dirname, '..', '..', 'storage', 'contracts');
 fs.mkdirSync(CONTRATOS_DIR, { recursive: true });
+
+const uploadFirma = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 2 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    const ok = file.mimetype === 'image/png' || file.mimetype === 'image/jpeg';
+    if (ok) cb(null, true);
+    else cb(new Error('La firma debe ser una imagen PNG o JPG'));
+  },
+});
 
 const generarSchema = z.object({
   plantilla_id: z.number().int().positive(),
@@ -184,6 +197,58 @@ contratosRouter.get('/:id/docx', async (req, res, next) => {
       return res.status(403).json({ error: 'No tienes permiso para ver este contrato' });
     }
     res.download(rows[0].docx_path, `contrato-${req.params.id}.docx`);
+  } catch (err) {
+    next(err);
+  }
+});
+
+contratosRouter.post('/:id/firmar', uploadFirma.single('firma'), async (req, res, next) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: 'Falta la imagen de la firma (campo "firma")' });
+
+    const [rows]: any = await pool.query('SELECT * FROM contratos WHERE id = ?', [req.params.id]);
+    if (!rows.length) return res.status(404).json({ error: 'Contrato no encontrado' });
+    const contrato = rows[0];
+
+    const esDueño = req.user!.empleado_id != null && req.user!.empleado_id === contrato.empleado_id;
+    if (!esDueño) {
+      return res.status(403).json({ error: 'Solo el trabajador dueño del contrato puede firmarlo' });
+    }
+    if (contrato.estado === 'firmado') {
+      return res.status(400).json({ error: 'Este contrato ya fue firmado' });
+    }
+    if (!contrato.pdf_path || !fs.existsSync(contrato.pdf_path)) {
+      return res.status(400).json({ error: 'El contrato todavía no tiene un PDF generado' });
+    }
+
+    const dir = path.join(CONTRATOS_DIR, String(contrato.id));
+    fs.mkdirSync(dir, { recursive: true });
+    const esJpg = req.file.mimetype === 'image/jpeg';
+    const firmaPath = path.join(dir, esJpg ? 'firma.jpg' : 'firma.png');
+    fs.writeFileSync(firmaPath, req.file.buffer);
+
+    const fechaFirma = new Date();
+    const pdfOriginal = fs.readFileSync(contrato.pdf_path);
+    const pdfFirmado = await estamparFirmaEnPdf(pdfOriginal, req.file.buffer, fechaHoraCorta(fechaFirma));
+    fs.writeFileSync(contrato.pdf_path, pdfFirmado);
+
+    const nuevoHash = hashSha256(pdfFirmado);
+    const ip = (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress || '';
+
+    await pool.query(
+      `UPDATE contratos SET
+        estado = 'firmado',
+        firma_path = ?,
+        firmado_en = ?,
+        firma_ip = ?,
+        firma_user_agent = ?,
+        pdf_hash_sha256 = ?
+       WHERE id = ?`,
+      [firmaPath, fechaFirma, ip, req.get('user-agent') || '', nuevoHash, contrato.id],
+    );
+
+    const [actualizado]: any = await pool.query('SELECT * FROM contratos WHERE id = ?', [contrato.id]);
+    res.json(actualizado[0]);
   } catch (err) {
     next(err);
   }

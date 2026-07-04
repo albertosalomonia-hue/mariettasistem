@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, apiErrorMessage } from '../api/client';
 import { descargarArchivo } from '../api/download';
@@ -23,11 +24,20 @@ function formatearFecha(iso: string): string {
 
 export function ContratosPage() {
   const queryClient = useQueryClient();
-  const [showForm, setShowForm] = useState(false);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [showForm, setShowForm] = useState(() => searchParams.has('empleado_id'));
   const [form, setForm] = useState(emptyForm);
   const [error, setError] = useState<string | null>(null);
   const [descargandoId, setDescargandoId] = useState<string | null>(null);
   const [contratoAEliminar, setContratoAEliminar] = useState<Contrato | null>(null);
+  const [filtroEmpleadoId, setFiltroEmpleadoId] = useState<number | null>(() => {
+    const param = searchParams.get('filtro_empleado');
+    return param ? Number(param) : null;
+  });
+  const [empleadoIdParaGenerar] = useState<number | null>(() => {
+    const param = searchParams.get('empleado_id');
+    return param ? Number(param) : null;
+  });
 
   const descargar = async (contratoId: number, tipo: 'pdf' | 'docx') => {
     const key = `${contratoId}-${tipo}`;
@@ -55,6 +65,27 @@ export function ContratosPage() {
   });
 
   const empleadoSeleccionado = empleadosQuery.data?.find((e) => e.id === form.empleado_id);
+  const filtroEmpleado = empleadosQuery.data?.find((e) => e.id === filtroEmpleadoId) ?? null;
+  const contratosVisibles = filtroEmpleadoId
+    ? (contratosQuery.data ?? []).filter((c) => c.empleado_id === filtroEmpleadoId)
+    : (contratosQuery.data ?? []);
+
+  useEffect(() => {
+    if (searchParams.has('empleado_id') || searchParams.has('filtro_empleado')) {
+      setSearchParams({}, { replace: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    if (!empleadoIdParaGenerar || !empleadosQuery.data) return;
+    const emp = empleadosQuery.data.find((x) => x.id === empleadoIdParaGenerar);
+    if (emp) {
+      setForm((f) => ({ ...f, empleado_id: empleadoIdParaGenerar, cargo: emp.cargo_default }));
+      setShowForm(true);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [empleadosQuery.data]);
 
   const generarMutation = useMutation({
     mutationFn: async () =>
@@ -223,6 +254,21 @@ export function ContratosPage() {
 
       {contratosQuery.isError && <ApiErrorBanner error={contratosQuery.error} />}
 
+      {filtroEmpleadoId && (
+        <div className="flex items-center justify-between bg-indigo-50 border border-indigo-100 rounded-lg px-4 py-2.5">
+          <p className="text-sm text-indigo-700">
+            Mostrando solo los contratos de{' '}
+            <strong>{filtroEmpleado?.nombre_completo ?? 'este empleado'}</strong>
+          </p>
+          <button
+            onClick={() => setFiltroEmpleadoId(null)}
+            className="text-sm font-medium text-indigo-600 hover:text-indigo-800"
+          >
+            Quitar filtro
+          </button>
+        </div>
+      )}
+
       <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
         <table className="w-full text-sm">
           <thead className="bg-gray-50 text-gray-500 text-left">
@@ -236,7 +282,7 @@ export function ContratosPage() {
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
-            {(contratosQuery.data ?? []).map((c) => (
+            {contratosVisibles.map((c) => (
               <tr key={c.id} className="hover:bg-gray-50">
                 <td className="px-4 py-2 text-gray-900">{c.empleado_nombre}</td>
                 <td className="px-4 py-2 text-gray-600">{c.cargo}</td>
@@ -282,10 +328,12 @@ export function ContratosPage() {
                 </td>
               </tr>
             ))}
-            {contratosQuery.isSuccess && contratosQuery.data.length === 0 && (
+            {contratosQuery.isSuccess && contratosVisibles.length === 0 && (
               <tr>
                 <td colSpan={6} className="px-4 py-8 text-center text-gray-400">
-                  Aún no se generó ningún contrato.
+                  {filtroEmpleadoId
+                    ? 'Este empleado no tiene contratos generados.'
+                    : 'Aún no se generó ningún contrato.'}
                 </td>
               </tr>
             )}

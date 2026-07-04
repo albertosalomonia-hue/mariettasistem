@@ -21,8 +21,8 @@ const crearSchema = z
     password: z.string().min(8, 'La contraseña debe tener al menos 8 caracteres'),
     rol: z.enum(['super_admin', 'rrhh', 'gerente', 'supervisor', 'trabajador']),
   })
-  .refine((data) => data.rol !== 'trabajador' || !!data.empleado_id, {
-    message: 'Selecciona el empleado al que pertenece esta cuenta de trabajador',
+  .refine((data) => data.rol === 'super_admin' || !!data.empleado_id, {
+    message: 'Selecciona el empleado al que pertenece esta cuenta (todo usuario, salvo el super administrador, debe estar vinculado a un empleado)',
     path: ['empleado_id'],
   });
 
@@ -62,7 +62,7 @@ usuariosRouter.post('/', soloSuperAdmin, async (req, res, next) => {
     const [result]: any = await pool.query('INSERT INTO usuarios SET ?', [
       {
         empresa_id: data.empresa_id,
-        empleado_id: data.rol === 'trabajador' ? data.empleado_id : null,
+        empleado_id: data.rol === 'super_admin' ? null : data.empleado_id,
         nombre_completo: data.nombre_completo,
         usuario: data.usuario,
         email,
@@ -85,6 +85,26 @@ usuariosRouter.post('/', soloSuperAdmin, async (req, res, next) => {
 usuariosRouter.put('/:id', soloSuperAdmin, async (req, res, next) => {
   try {
     const data = actualizarSchema.parse(req.body);
+
+    if (String(req.user!.sub) === req.params.id && (data.rol || data.activo === false)) {
+      return res.status(400).json({ error: 'No puedes cambiar tu propio rol ni desactivar tu propia cuenta' });
+    }
+
+    if (data.rol || data.empleado_id !== undefined) {
+      const [actualRows]: any = await pool.query(
+        'SELECT rol, empleado_id FROM usuarios WHERE id = ?',
+        [req.params.id],
+      );
+      if (!actualRows.length) return res.status(404).json({ error: 'Usuario no encontrado' });
+      const rolFinal = data.rol ?? actualRows[0].rol;
+      const empleadoIdFinal = data.empleado_id !== undefined ? data.empleado_id : actualRows[0].empleado_id;
+      if (rolFinal !== 'super_admin' && !empleadoIdFinal) {
+        return res.status(400).json({
+          error: 'Este usuario debe estar vinculado a un empleado (excepto el super administrador)',
+        });
+      }
+    }
+
     const { password, ...resto } = data;
 
     const cambios: Record<string, unknown> = { ...resto };

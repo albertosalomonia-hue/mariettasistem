@@ -30,10 +30,10 @@ function Avatar({ empleado, size = 'w-10 h-10 text-sm' }: { empleado: Empleado; 
     <AuthImage
       src={empleado.foto_path ? `/empleados/${empleado.id}/foto` : null}
       alt={empleado.nombre_completo}
-      className={`${size} rounded-full object-cover shrink-0`}
+      className={`${size} rounded-lg object-cover shrink-0`}
       fallback={
         <div
-          className={`${size} rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center font-semibold shrink-0`}
+          className={`${size} rounded-lg bg-indigo-100 text-indigo-700 flex items-center justify-center font-semibold shrink-0`}
         >
           {iniciales(empleado.nombre_completo)}
         </div>
@@ -268,9 +268,9 @@ function PerfilEmpleadoModal({ empleado, onClose }: { empleado: Empleado; onClos
             key={photoVersion}
             src={empleado.foto_path ? `/empleados/${empleado.id}/foto?v=${photoVersion}` : null}
             alt={empleado.nombre_completo}
-            className="w-24 h-24 rounded-full object-cover"
+            className="w-28 h-36 rounded-lg object-cover"
             fallback={
-              <div className="w-24 h-24 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-2xl font-semibold">
+              <div className="w-28 h-36 rounded-lg bg-indigo-100 text-indigo-700 flex items-center justify-center text-2xl font-semibold">
                 {iniciales(empleado.nombre_completo)}
               </div>
             }

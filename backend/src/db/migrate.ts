@@ -24,6 +24,7 @@ async function migrate() {
   await migrarColumnaUsuario(connection, dbName);
   await migrarColumnaEmpleadoId(connection, dbName);
   await migrarColumnaFotoPath(connection, dbName);
+  await migrarColumnasFirma(connection, dbName);
 
   console.log(`Migración aplicada sobre la base de datos "${dbName}".`);
   await connection.end();
@@ -103,6 +104,26 @@ async function migrarColumnaFotoPath(connection: mysql.Connection, dbName: strin
   if (columnas.length) return;
 
   await connection.query('ALTER TABLE empleados ADD COLUMN foto_path VARCHAR(500) NULL AFTER telefono');
+}
+
+/**
+ * Parche idempotente: agrega las columnas de firma electrónica del trabajador en contratos.
+ */
+async function migrarColumnasFirma(connection: mysql.Connection, dbName: string) {
+  const [columnas]: any = await connection.query(
+    `SELECT COLUMN_NAME FROM information_schema.COLUMNS
+     WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'contratos' AND COLUMN_NAME = 'firma_path'`,
+    [dbName],
+  );
+  if (columnas.length) return;
+
+  await connection.query(
+    `ALTER TABLE contratos
+     ADD COLUMN firma_path VARCHAR(500) NULL AFTER pdf_hash_sha256,
+     ADD COLUMN firmado_en DATETIME NULL AFTER firma_path,
+     ADD COLUMN firma_ip VARCHAR(45) NULL AFTER firmado_en,
+     ADD COLUMN firma_user_agent VARCHAR(255) NULL AFTER firma_ip`,
+  );
 }
 
 migrate().catch((err) => {

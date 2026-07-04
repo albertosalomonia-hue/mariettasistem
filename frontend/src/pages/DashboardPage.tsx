@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../api/client';
 import { useAuth } from '../api/AuthContext';
 import { AuthImage } from '../components/AuthImage';
 import { ESTADO_BAR, ESTADO_LABEL } from '../api/estados';
+import { calcularVigencia, VIGENCIA_ESTILO } from '../api/vigencia';
 import { IconUsers, IconTemplate, IconContract, IconDashboard } from '../components/icons';
 import type { Contrato, Empleado, Plantilla } from '../api/types';
 
@@ -38,9 +39,15 @@ function iniciales(nombre: string): string {
     .toUpperCase();
 }
 
+function diasLabel(dias: number): string {
+  if (dias < 0) return `Vencido hace ${Math.abs(dias)} día${Math.abs(dias) === 1 ? '' : 's'}`;
+  if (dias === 0) return 'Vence hoy';
+  return `${dias} día${dias === 1 ? '' : 's'} restantes`;
+}
+
 export function DashboardPage() {
   const { usuario } = useAuth();
-  const [empleadoSeleccionado, setEmpleadoSeleccionado] = useState<number | null>(null);
+  const navigate = useNavigate();
 
   const empleadosQuery = useQuery({
     queryKey: ['empleados', ''],
@@ -55,21 +62,12 @@ export function DashboardPage() {
     queryFn: async () => (await api.get<Contrato[]>('/contratos')).data,
   });
 
-  const empleados = empleadosQuery.data ?? [];
-  const empleadosActivos = empleados.filter((e) => e.estado === 'activo').length;
+  const empleados = (empleadosQuery.data ?? []).filter((e) => e.estado === 'activo');
   const plantillasActivas = (plantillasQuery.data ?? []).filter((p) => p.activa).length;
   const contratos = contratosQuery.data ?? [];
   const contratosFirmados = contratos.filter((c) => c.estado === 'firmado').length;
 
-  const contarContratos = (empleadoId: number) =>
-    contratos.filter((c) => c.empleado_id === empleadoId).length;
-
-  const empleadoActivo = empleados.find((e) => e.id === empleadoSeleccionado) ?? null;
-  const contratosFiltrados = empleadoSeleccionado
-    ? contratos.filter((c) => c.empleado_id === empleadoSeleccionado)
-    : contratos;
-
-  const porEstado = contratosFiltrados.reduce<Record<string, number>>((acc, c) => {
+  const porEstado = contratos.reduce<Record<string, number>>((acc, c) => {
     acc[c.estado] = (acc[c.estado] ?? 0) + 1;
     return acc;
   }, {});
@@ -86,48 +84,79 @@ export function DashboardPage() {
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <KpiCard label="Empleados activos" value={empleadosActivos} icon={IconUsers} accent="bg-indigo-500" />
+        <KpiCard label="Empleados activos" value={empleados.length} icon={IconUsers} accent="bg-indigo-500" />
         <KpiCard label="Plantillas activas" value={plantillasActivas} icon={IconTemplate} accent="bg-blue-500" />
         <KpiCard label="Contratos generados" value={contratos.length} icon={IconContract} accent="bg-amber-500" />
         <KpiCard label="Contratos firmados" value={contratosFirmados} icon={IconDashboard} accent="bg-green-500" />
       </div>
 
       <div>
-        <h2 className="font-medium text-gray-900 mb-3">Empleados</h2>
+        <h2 className="font-medium text-gray-900 mb-3">Vigencia de contratos por empleado</h2>
+        <p className="text-xs text-gray-400 mb-3">Haz clic en una tarjeta para ver los contratos de ese empleado.</p>
         {empleados.length === 0 ? (
-          <p className="text-sm text-gray-400">Sin empleados registrados todavía.</p>
+          <p className="text-sm text-gray-400">Sin empleados activos registrados todavía.</p>
         ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
             {empleados.map((emp) => {
-              const seleccionado = emp.id === empleadoSeleccionado;
+              const vigencia = calcularVigencia(contratos, emp.id);
+              const estilo = VIGENCIA_ESTILO[vigencia.estado];
+              const mostrarBoton = vigencia.estado !== 'vigente';
+
               return (
-                <button
+                <div
                   key={emp.id}
-                  onClick={() => setEmpleadoSeleccionado(seleccionado ? null : emp.id)}
-                  className={`bg-white border rounded-xl p-4 flex flex-col items-center text-center gap-2 transition-all ${
-                    seleccionado
-                      ? 'border-indigo-500 ring-2 ring-indigo-500'
-                      : 'border-gray-200 hover:border-gray-300'
-                  }`}
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => navigate(`/contratos?filtro_empleado=${emp.id}`)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') navigate(`/contratos?filtro_empleado=${emp.id}`);
+                  }}
+                  className={`border rounded-2xl p-5 space-y-4 cursor-pointer select-none transition-all duration-150 hover:shadow-lg hover:-translate-y-0.5 active:scale-[0.97] active:shadow-sm ${estilo.tarjeta}`}
                 >
-                  <AuthImage
-                    src={emp.foto_path ? `/empleados/${emp.id}/foto` : null}
-                    alt={emp.nombre_completo}
-                    className="w-16 h-16 rounded-full object-cover"
-                    fallback={
-                      <div className="w-16 h-16 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center font-semibold">
-                        {iniciales(emp.nombre_completo)}
-                      </div>
-                    }
-                  />
-                  <div>
-                    <p className="text-sm font-medium text-gray-900 leading-tight">{emp.nombre_completo}</p>
-                    <p className="text-xs text-gray-400">{emp.cargo_default}</p>
+                  <div className="w-full flex flex-col items-center text-center gap-2">
+                    <AuthImage
+                      src={emp.foto_path ? `/empleados/${emp.id}/foto` : null}
+                      alt={emp.nombre_completo}
+                      className="w-20 h-20 rounded-lg object-cover shrink-0"
+                      fallback={
+                        <div className="w-20 h-20 rounded-lg bg-indigo-100 text-indigo-700 flex items-center justify-center text-lg font-semibold shrink-0">
+                          {iniciales(emp.nombre_completo)}
+                        </div>
+                      }
+                    />
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-gray-900 truncate">{emp.nombre_completo}</p>
+                      <p className="text-xs text-gray-400 truncate">{emp.cargo_default}</p>
+                    </div>
+                    <span className={`shrink-0 px-2.5 py-1 rounded-full text-xs font-medium ${estilo.badge}`}>
+                      {estilo.label}
+                    </span>
                   </div>
-                  <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-indigo-50 text-indigo-700">
-                    {contarContratos(emp.id)} contrato{contarContratos(emp.id) === 1 ? '' : 's'}
-                  </span>
-                </button>
+
+                  <div>
+                    <div className="h-2 rounded-full bg-gray-100 overflow-hidden">
+                      <div
+                        className={`h-full rounded-full ${estilo.barra}`}
+                        style={{ width: `${vigencia.contrato ? vigencia.porcentaje : 0}%` }}
+                      />
+                    </div>
+                    <p className="mt-2 text-sm text-gray-500">
+                      {vigencia.diasRestantes === null ? 'Nunca se le generó un contrato' : diasLabel(vigencia.diasRestantes)}
+                    </p>
+                  </div>
+
+                  {mostrarBoton && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        navigate(`/contratos?empleado_id=${emp.id}`);
+                      }}
+                      className="w-full px-4 py-2.5 rounded-lg bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700 active:scale-[0.97] transition-transform"
+                    >
+                      + Generar nuevo contrato
+                    </button>
+                  )}
+                </div>
               );
             })}
           </div>
@@ -135,20 +164,7 @@ export function DashboardPage() {
       </div>
 
       <div className="bg-white border border-gray-200 rounded-xl p-6">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="font-medium text-gray-900">
-            Contratos por estado
-            {empleadoActivo && <span className="text-gray-400 font-normal"> — {empleadoActivo.nombre_completo}</span>}
-          </h2>
-          {empleadoActivo && (
-            <button
-              onClick={() => setEmpleadoSeleccionado(null)}
-              className="text-xs font-medium text-indigo-600 hover:text-indigo-700"
-            >
-              Quitar filtro
-            </button>
-          )}
-        </div>
+        <h2 className="font-medium text-gray-900 mb-4">Contratos por estado</h2>
         {estadosConDatos.length === 0 ? (
           <p className="text-sm text-gray-400">Aún no hay contratos generados.</p>
         ) : (
