@@ -1,13 +1,12 @@
 import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
-import { execFile } from 'child_process';
 import PizZip from 'pizzip';
 import Docxtemplater from 'docxtemplater';
 import { sueldoALetras } from './numeroALetras';
 import { fechaLarga } from './fechas';
 
-const DOCX_TO_PDF_SCRIPT = path.join(__dirname, '..', '..', 'scripts', 'docx-to-pdf.ps1');
+const GOTENBERG_URL = process.env.GOTENBERG_URL || 'http://localhost:3300';
 
 export interface EmpresaData {
   razon_social: string;
@@ -87,32 +86,32 @@ export function guardarArchivosContrato(
 }
 
 /**
- * Convierte el .docx a PDF usando Word instalado localmente vía automatización COM
- * (no requiere LibreOffice). Solo funciona en Windows con Microsoft Word instalado.
+ * Convierte el .docx a PDF llamando a un contenedor Gotenberg (LibreOffice headless
+ * detrás de una API HTTP). Requiere el servicio Gotenberg corriendo y accesible en
+ * GOTENBERG_URL (docker-compose en el servidor Debian).
  */
-export function convertirAPdfConWord(docxPath: string, pdfPath: string): Promise<void> {
-  return new Promise((resolve, reject) => {
-    execFile(
-      'powershell.exe',
-      [
-        '-NoProfile',
-        '-ExecutionPolicy',
-        'Bypass',
-        '-File',
-        DOCX_TO_PDF_SCRIPT,
-        '-InputPath',
-        docxPath,
-        '-OutputPath',
-        pdfPath,
-      ],
-      { timeout: 60_000 },
-      (error, _stdout, stderr) => {
-        if (error) {
-          reject(new Error(stderr || error.message));
-          return;
-        }
-        resolve();
-      },
-    );
+export async function convertirAPdfConGotenberg(docxPath: string, pdfPath: string): Promise<void> {
+  const docxBuffer = fs.readFileSync(docxPath);
+  const form = new FormData();
+  form.append(
+    'files',
+    new Blob([docxBuffer], {
+      type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    }),
+    path.basename(docxPath),
+  );
+
+  const response = await fetch(`${GOTENBERG_URL}/forms/libreoffice/convert`, {
+    method: 'POST',
+    body: form,
+    signal: AbortSignal.timeout(60_000),
   });
+
+  if (!response.ok) {
+    const detalle = await response.text().catch(() => '');
+    throw new Error(`Gotenberg respondió ${response.status}: ${detalle}`);
+  }
+
+  const pdfBytes = Buffer.from(await response.arrayBuffer());
+  fs.writeFileSync(pdfPath, pdfBytes);
 }

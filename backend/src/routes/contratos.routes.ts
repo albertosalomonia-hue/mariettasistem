@@ -9,7 +9,7 @@ import {
   renderDocx,
   hashSha256,
   guardarArchivosContrato,
-  convertirAPdfConWord,
+  convertirAPdfConGotenberg,
 } from '../services/contratoGenerator';
 import { estamparFirmaEnPdf } from '../services/firmaService';
 import { fechaHoraCorta } from '../services/fechas';
@@ -144,11 +144,11 @@ contratosRouter.post('/', puedeGenerar, async (req, res, next) => {
     const { docxPath, pdfPath } = guardarArchivosContrato(CONTRATOS_DIR, contratoId, docxBuffer);
 
     try {
-      await convertirAPdfConWord(docxPath, pdfPath);
+      await convertirAPdfConGotenberg(docxPath, pdfPath);
     } catch (convErr: any) {
       await pool.query('DELETE FROM contratos WHERE id = ?', [contratoId]);
       return res.status(502).json({
-        error: 'No se pudo generar el PDF del contrato (conversión vía Word falló).',
+        error: 'No se pudo generar el PDF del contrato (conversión vía Gotenberg falló).',
         detalle: convErr?.message,
       });
     }
