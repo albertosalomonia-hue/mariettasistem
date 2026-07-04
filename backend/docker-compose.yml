@@ -3,4 +3,25 @@ services:
     image: gotenberg/gotenberg:8
     restart: unless-stopped
     ports:
-      - "127.0.0.1:3300:3300"
+      - "127.0.0.1:3000:3000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  backend:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      gotenberg:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      GOTENBERG_URL: http://gotenberg:3000
+    ports:
+      - "127.0.0.1:4100:4100"
+    volumes:
+      - ./storage:/app/storage

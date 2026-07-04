@@ -6,7 +6,7 @@ import Docxtemplater from 'docxtemplater';
 import { sueldoALetras } from './numeroALetras';
 import { fechaLarga } from './fechas';
 
-const GOTENBERG_URL = process.env.GOTENBERG_URL || 'http://localhost:3300';
+const GOTENBERG_URL = process.env.GOTENBERG_URL || 'http://localhost:3000';
 
 export interface EmpresaData {
   razon_social: string;
