@@ -20,7 +20,15 @@ WORKDIR /app
 ENV NODE_ENV=production
 
 COPY package.json package-lock.json ./
-RUN npm install --omit=dev --os=linux --cpu=x64 --libc=glibc
+# --os/--cpu/--libc no alcanzan: esta versión de npm igual instala el binario
+# musl (y wasm32) de sharp junto al glibc que sí necesitamos. Con ambos
+# presentes, la lógica de sharp para elegir el binario nativo se rompe y
+# revienta con un error confuso al hacer require(). Se borran a mano las
+# variantes que no corresponden a esta imagen (Debian bookworm = glibc).
+RUN npm install --omit=dev --os=linux --cpu=x64 --libc=glibc && \
+    rm -rf node_modules/@img/sharp-linuxmusl-x64 \
+           node_modules/@img/sharp-libvips-linuxmusl-x64 \
+           node_modules/@img/sharp-wasm32
 
 COPY --from=builder /app/dist ./dist
 
