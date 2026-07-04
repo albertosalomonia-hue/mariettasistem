@@ -41,7 +41,7 @@ export function SignaturePad({ onSave, saving }: SignaturePadProps) {
     if (!ctx) return;
     e.preventDefault();
     const { x, y } = posicionDesdeEvento(canvas, e);
-    ctx.lineWidth = 2.5;
+    ctx.lineWidth = 4.5;
     ctx.lineCap = 'round';
     ctx.strokeStyle = '#1f2937';
     ctx.lineTo(x, y);
