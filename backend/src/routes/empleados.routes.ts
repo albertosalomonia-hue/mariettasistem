@@ -40,6 +40,9 @@ const uploadFoto = multer({
 // tiempo de ejecución y cae a una ruta sin SIMD si hace falta.
 async function convertirAWebpCover500(buffer: Buffer, destino: string): Promise<void> {
   const { width, height } = imageSize(buffer);
+  if (!width || !height) {
+    throw new Error('No se pudieron leer las dimensiones de la imagen');
+  }
   const lado = Math.min(width, height);
   const cropX = Math.floor((width - lado) / 2);
   const cropY = Math.floor((height - lado) / 2);
