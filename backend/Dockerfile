@@ -2,13 +2,10 @@ FROM node:22-bookworm-slim AS builder
 WORKDIR /app
 
 COPY package.json package-lock.json ./
-# npm ci respeta el lockfile al pie de la letra, incluyendo qué binario nativo
-# de sharp quedó resuelto — y ese lockfile se generó en Windows, así que solo
-# lista el binario win32. npm install reevalúa las dependencias opcionales,
-# pero sin --libc instala TANTO el binario glibc como el musl (npm no filtra
-# por libc si no se lo pedís), y sharp se confunde cuando encuentra varios
-# binarios instalados. Forzamos exactamente el que corresponde a esta imagen
-# (Debian/bookworm = glibc).
+# npm ci respeta el lockfile al pie de la letra, incluyendo qué binarios
+# nativos opcionales quedaron resueltos — y ese lockfile se generó en
+# Windows. npm install reevalúa las dependencias opcionales para la
+# plataforma real de esta imagen (Debian/bookworm = linux x64 glibc).
 RUN npm install --os=linux --cpu=x64 --libc=glibc
 
 COPY tsconfig.json ./
@@ -19,22 +16,16 @@ FROM node:22-bookworm-slim
 WORKDIR /app
 ENV NODE_ENV=production
 
+# cwebp (paquete `webp`): usado para redimensionar/convertir la foto de
+# empleado a WEBP. A diferencia de sharp/libvips, libwebp detecta el set de
+# instrucciones SIMD disponible en tiempo de ejecución y cae a una ruta sin
+# SIMD si el CPU no lo soporta — funciona en CPUs virtuales QEMU genéricas
+# donde sharp (nativo o WASM) tira "Unsupported CPU".
+RUN apt-get update && apt-get install -y --no-install-recommends webp && \
+    rm -rf /var/lib/apt/lists/*
+
 COPY package.json package-lock.json ./
-# --os/--cpu/--libc no alcanzan: esta versión de npm igual instala el binario
-# musl de sharp junto al glibc que sí necesitamos. Con ambos presentes, la
-# lógica de sharp para elegir el binario nativo se rompe y revienta con un
-# error confuso al hacer require(). Se borran a mano las variantes musl, que
-# no corresponden a esta imagen (Debian bookworm = glibc).
-#
-# @img/sharp-wasm32 NO se borra a propósito: es el fallback universal (WASM,
-# sin dependencia de instrucciones del CPU) que sharp intenta automáticamente
-# cuando el binario nativo linux-x64 no pasa el chequeo _isUsingX64V2() —
-# necesario en VPS con CPU virtual QEMU genérico (sin SSE4.2/v2). No genera
-# el conflicto de arriba porque sharp solo lo prueba como último recurso, no
-# compite con los binarios nativos.
-RUN npm install --omit=dev --os=linux --cpu=x64 --libc=glibc && \
-    rm -rf node_modules/@img/sharp-linuxmusl-x64 \
-           node_modules/@img/sharp-libvips-linuxmusl-x64
+RUN npm install --omit=dev --os=linux --cpu=x64 --libc=glibc
 
 COPY --from=builder /app/dist ./dist
 
