@@ -22,6 +22,6 @@ services:
     environment:
       GOTENBERG_URL: http://gotenberg:3000
     ports:
-      - "127.0.0.1:4100:4100"
+      - "0.0.0.0:4100:4100"
     volumes:
       - ./storage:/app/storage
