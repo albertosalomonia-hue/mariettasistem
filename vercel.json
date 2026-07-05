@@ -12,6 +12,7 @@
     }
   },
   "rewrites": [
+    { "source": "/api/:path*", "destination": "http://161.132.47.226:4100/api/:path*" },
     { "source": "/(.*)", "destination": { "service": "frontend" } }
   ]
 }
