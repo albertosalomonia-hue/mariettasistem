@@ -70,19 +70,27 @@ export function hashSha256(buffer: Buffer): string {
   return crypto.createHash('sha256').update(buffer).digest('hex');
 }
 
+// docxRelPath/pdfRelPath son relativos a storageDir (CONTRATOS_DIR) y son lo
+// que se persiste en la BD — nunca la ruta absoluta. La ruta absoluta depende
+// de en qué máquina/contenedor corre el proceso, y guardar la absoluta rompe
+// el acceso al archivo apenas el backend se muda de servidor (ver contrato
+// generado en Windows durante desarrollo, luego movido al VPS Linux).
 export function guardarArchivosContrato(
   storageDir: string,
   contratoId: number,
   docxBuffer: Buffer,
-): { docxPath: string; pdfPath: string; dir: string } {
-  const dir = path.join(storageDir, String(contratoId));
+): { docxPath: string; pdfPath: string; docxRelPath: string; pdfRelPath: string; dir: string } {
+  const relDir = String(contratoId);
+  const dir = path.join(storageDir, relDir);
   fs.mkdirSync(dir, { recursive: true });
 
-  const docxPath = path.join(dir, 'contrato.docx');
-  const pdfPath = path.join(dir, 'contrato.pdf');
+  const docxRelPath = path.join(relDir, 'contrato.docx');
+  const pdfRelPath = path.join(relDir, 'contrato.pdf');
+  const docxPath = path.join(storageDir, docxRelPath);
+  const pdfPath = path.join(storageDir, pdfRelPath);
   fs.writeFileSync(docxPath, docxBuffer);
 
-  return { docxPath, pdfPath, dir };
+  return { docxPath, pdfPath, docxRelPath, pdfRelPath, dir };
 }
 
 /**
