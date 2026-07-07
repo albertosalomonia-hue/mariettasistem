@@ -137,12 +137,13 @@ empleadosRouter.post('/:id/foto', puedeEditar, uploadFoto.single('foto'), async 
     const [rows]: any = await pool.query('SELECT id FROM empleados WHERE id = ?', [req.params.id]);
     if (!rows.length) return res.status(404).json({ error: 'Empleado no encontrado' });
 
-    const dir = path.join(FOTOS_DIR, String(req.params.id));
+    const relDir = String(req.params.id);
+    const dir = path.join(FOTOS_DIR, relDir);
     fs.mkdirSync(dir, { recursive: true });
-    const fotoPath = path.join(dir, 'foto.webp');
-    await convertirAWebpCover500(req.file.buffer, fotoPath);
+    const fotoRelPath = path.join(relDir, 'foto.webp');
+    await convertirAWebpCover500(req.file.buffer, path.join(FOTOS_DIR, fotoRelPath));
 
-    await pool.query('UPDATE empleados SET foto_path = ? WHERE id = ?', [fotoPath, req.params.id]);
+    await pool.query('UPDATE empleados SET foto_path = ? WHERE id = ?', [fotoRelPath, req.params.id]);
     res.status(200).json({ ok: true });
   } catch (err) {
     next(err);
@@ -152,10 +153,11 @@ empleadosRouter.post('/:id/foto', puedeEditar, uploadFoto.single('foto'), async 
 empleadosRouter.get('/:id/foto', puedeVer, async (req, res, next) => {
   try {
     const [rows]: any = await pool.query('SELECT foto_path FROM empleados WHERE id = ?', [req.params.id]);
-    if (!rows.length || !rows[0].foto_path || !fs.existsSync(rows[0].foto_path)) {
+    const fotoAbsPath = rows.length && rows[0].foto_path ? path.join(FOTOS_DIR, rows[0].foto_path) : null;
+    if (!fotoAbsPath || !fs.existsSync(fotoAbsPath)) {
       return res.status(404).json({ error: 'Foto no encontrada' });
     }
-    res.sendFile(rows[0].foto_path);
+    res.sendFile(fotoAbsPath);
   } catch (err) {
     next(err);
   }

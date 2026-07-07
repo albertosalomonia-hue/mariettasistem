@@ -10,7 +10,7 @@ export const plantillasRouter = Router();
 const puedeEditar = requireRole('super_admin', 'rrhh');
 const puedeVer = requireRole('super_admin', 'rrhh', 'gerente', 'supervisor');
 
-const TEMPLATES_DIR = path.join(__dirname, '..', '..', 'storage', 'plantillas');
+export const TEMPLATES_DIR = path.join(__dirname, '..', '..', 'storage', 'plantillas');
 fs.mkdirSync(TEMPLATES_DIR, { recursive: true });
 
 const upload = multer({
@@ -60,7 +60,7 @@ plantillasRouter.post('/', puedeEditar, upload.single('archivo'), async (req, re
       {
         nombre: req.body.nombre,
         descripcion: req.body.descripcion || null,
-        archivo_path: filePath,
+        archivo_path: filename,
         variables_json: JSON.stringify(variables),
       },
     ]);

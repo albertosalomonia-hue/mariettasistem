@@ -14,6 +14,7 @@ import {
 import { estamparFirmaEnPdf } from '../services/firmaService';
 import { fechaHoraCorta } from '../services/fechas';
 import { requireRole } from '../middleware/auth';
+import { TEMPLATES_DIR } from './plantillas.routes';
 
 export const contratosRouter = Router();
 const puedeGenerar = requireRole('super_admin', 'rrhh', 'gerente');
@@ -113,7 +114,7 @@ contratosRouter.post('/', puedeGenerar, async (req, res, next) => {
     if (!plantillaRows.length) return res.status(404).json({ error: 'Plantilla no encontrada' });
     const plantilla = plantillaRows[0];
 
-    const plantillaBuffer = fs.readFileSync(plantilla.archivo_path);
+    const plantillaBuffer = fs.readFileSync(path.join(TEMPLATES_DIR, plantilla.archivo_path));
 
     const datos = construirDatosPlantilla(empresa, empleado, {
       cargo: body.cargo || empleado.cargo_default,
@@ -141,7 +142,11 @@ contratosRouter.post('/', puedeGenerar, async (req, res, next) => {
     ]);
     const contratoId = insertResult.insertId;
 
-    const { docxPath, pdfPath } = guardarArchivosContrato(CONTRATOS_DIR, contratoId, docxBuffer);
+    const { docxPath, pdfPath, docxRelPath, pdfRelPath } = guardarArchivosContrato(
+      CONTRATOS_DIR,
+      contratoId,
+      docxBuffer,
+    );
 
     try {
       await convertirAPdfConGotenberg(docxPath, pdfPath);
@@ -156,8 +161,8 @@ contratosRouter.post('/', puedeGenerar, async (req, res, next) => {
     const pdfHash = hashSha256(fs.readFileSync(pdfPath));
 
     await pool.query('UPDATE contratos SET docx_path = ?, pdf_path = ?, pdf_hash_sha256 = ? WHERE id = ?', [
-      docxPath,
-      pdfPath,
+      docxRelPath,
+      pdfRelPath,
       pdfHash,
       contratoId,
     ]);
@@ -183,7 +188,7 @@ contratosRouter.get('/:id/pdf', async (req, res, next) => {
     if (!(await puedeVerContrato(req, rows[0]))) {
       return res.status(403).json({ error: 'No tienes permiso para ver este contrato' });
     }
-    res.download(rows[0].pdf_path, `contrato-${req.params.id}.pdf`);
+    res.download(path.join(CONTRATOS_DIR, rows[0].pdf_path), `contrato-${req.params.id}.pdf`);
   } catch (err) {
     next(err);
   }
@@ -196,7 +201,7 @@ contratosRouter.get('/:id/docx', async (req, res, next) => {
     if (!(await puedeVerContrato(req, rows[0]))) {
       return res.status(403).json({ error: 'No tienes permiso para ver este contrato' });
     }
-    res.download(rows[0].docx_path, `contrato-${req.params.id}.docx`);
+    res.download(path.join(CONTRATOS_DIR, rows[0].docx_path), `contrato-${req.params.id}.docx`);
   } catch (err) {
     next(err);
   }
@@ -217,20 +222,22 @@ contratosRouter.post('/:id/firmar', uploadFirma.single('firma'), async (req, res
     if (contrato.estado === 'firmado') {
       return res.status(400).json({ error: 'Este contrato ya fue firmado' });
     }
-    if (!contrato.pdf_path || !fs.existsSync(contrato.pdf_path)) {
+    const pdfAbsPath = path.join(CONTRATOS_DIR, contrato.pdf_path);
+    if (!contrato.pdf_path || !fs.existsSync(pdfAbsPath)) {
       return res.status(400).json({ error: 'El contrato todavía no tiene un PDF generado' });
     }
 
-    const dir = path.join(CONTRATOS_DIR, String(contrato.id));
+    const relDir = String(contrato.id);
+    const dir = path.join(CONTRATOS_DIR, relDir);
     fs.mkdirSync(dir, { recursive: true });
     const esJpg = req.file.mimetype === 'image/jpeg';
-    const firmaPath = path.join(dir, esJpg ? 'firma.jpg' : 'firma.png');
-    fs.writeFileSync(firmaPath, req.file.buffer);
+    const firmaRelPath = path.join(relDir, esJpg ? 'firma.jpg' : 'firma.png');
+    fs.writeFileSync(path.join(CONTRATOS_DIR, firmaRelPath), req.file.buffer);
 
     const fechaFirma = new Date();
-    const pdfOriginal = fs.readFileSync(contrato.pdf_path);
+    const pdfOriginal = fs.readFileSync(pdfAbsPath);
     const pdfFirmado = await estamparFirmaEnPdf(pdfOriginal, req.file.buffer, fechaHoraCorta(fechaFirma));
-    fs.writeFileSync(contrato.pdf_path, pdfFirmado);
+    fs.writeFileSync(pdfAbsPath, pdfFirmado);
 
     const nuevoHash = hashSha256(pdfFirmado);
     const ip = (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress || '';
@@ -244,7 +251,7 @@ contratosRouter.post('/:id/firmar', uploadFirma.single('firma'), async (req, res
         firma_user_agent = ?,
         pdf_hash_sha256 = ?
        WHERE id = ?`,
-      [firmaPath, fechaFirma, ip, req.get('user-agent') || '', nuevoHash, contrato.id],
+      [firmaRelPath, fechaFirma, ip, req.get('user-agent') || '', nuevoHash, contrato.id],
     );
 
     const [actualizado]: any = await pool.query('SELECT * FROM contratos WHERE id = ?', [contrato.id]);
