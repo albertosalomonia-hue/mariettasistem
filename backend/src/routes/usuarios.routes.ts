@@ -105,6 +105,14 @@ usuariosRouter.put('/:id', soloSuperAdmin, async (req, res, next) => {
       }
     }
 
+    if (data.password) {
+      const [objetivoRows]: any = await pool.query('SELECT usuario FROM usuarios WHERE id = ?', [req.params.id]);
+      if (!objetivoRows.length) return res.status(404).json({ error: 'Usuario no encontrado' });
+      if (objetivoRows[0].usuario === 'admin') {
+        return res.status(400).json({ error: 'La contraseña del usuario admin no puede restablecerse desde aquí' });
+      }
+    }
+
     const { password, ...resto } = data;
 
     const cambios: Record<string, unknown> = { ...resto };

@@ -282,6 +282,7 @@ export function UsuariosPage() {
           <tbody className="divide-y divide-gray-100">
             {(usuariosQuery.data ?? []).map((u) => {
               const esMiPropiaCuenta = u.id === usuarioActual?.id;
+              const esCuentaAdmin = u.usuario === 'admin';
               return (
                 <tr key={u.id} className="hover:bg-gray-50">
                   <td className="px-4 py-2 text-gray-900">
@@ -353,7 +354,9 @@ export function UsuariosPage() {
                   </td>
                   <td className="px-4 py-2 space-x-3">
                     <button
-                      className="text-blue-600 hover:underline"
+                      disabled={esCuentaAdmin}
+                      title={esCuentaAdmin ? 'La contraseña del usuario admin no puede restablecerse desde aquí' : undefined}
+                      className="text-blue-600 hover:underline disabled:text-gray-300 disabled:no-underline disabled:cursor-not-allowed"
                       onClick={() => {
                         setResetPasswordId(u.id);
                         setNuevaPassword('');
