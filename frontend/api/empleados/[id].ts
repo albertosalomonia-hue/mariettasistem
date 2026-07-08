@@ -15,6 +15,7 @@ const empleadoSchema = z.object({
   cargo_default: z.string().min(2).max(150),
   email: z.string().email().optional().nullable(),
   telefono: z.string().max(30).optional().nullable(),
+  estado: z.enum(['activo', 'cesado']).optional(),
 });
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
