@@ -239,6 +239,20 @@ function PerfilEmpleadoModal({ empleado, onClose }: { empleado: Empleado; onClos
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [error, setError] = useState<string | null>(null);
   const [photoVersion, setPhotoVersion] = useState(0);
+  const [editando, setEditando] = useState(false);
+  const [editForm, setEditForm] = useState({
+    nombre_completo: empleado.nombre_completo,
+    dni: empleado.dni,
+    direccion: empleado.direccion,
+    cargo_default: empleado.cargo_default,
+    email: empleado.email ?? '',
+    telefono: empleado.telefono ?? '',
+  });
+
+  const empresasQuery = useQuery({
+    queryKey: ['empresas'],
+    queryFn: async () => (await api.get<Empresa[]>('/empresas')).data,
+  });
 
   const subirFotoMutation = useMutation({
     mutationFn: async (file: File) => {
@@ -254,14 +268,54 @@ function PerfilEmpleadoModal({ empleado, onClose }: { empleado: Empleado; onClos
     onError: (err) => setError(apiErrorMessage(err)),
   });
 
+  const guardarMutation = useMutation({
+    mutationFn: async () =>
+      (
+        await api.put(`/empleados/${empleado.id}`, {
+          ...editForm,
+          email: editForm.email || null,
+          telefono: editForm.telefono || null,
+        })
+      ).data,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['empleados'] });
+      setEditando(false);
+      setError(null);
+    },
+    onError: (err) => setError(apiErrorMessage(err)),
+  });
+
+  const empresaActual = empresasQuery.data?.find((e) => e.id === empleado.empresa_id);
+
   return (
     <div className="fixed inset-0 bg-black/30 flex items-center justify-center px-4 z-10">
       <div className="bg-white rounded-xl p-6 w-full max-w-md space-y-5">
         <div className="flex items-start justify-between">
           <h3 className="font-medium text-gray-900">Perfil del empleado</h3>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
-            ✕
-          </button>
+          <div className="flex items-center gap-3">
+            {!editando && (
+              <button
+                onClick={() => {
+                  setEditForm({
+                    nombre_completo: empleado.nombre_completo,
+                    dni: empleado.dni,
+                    direccion: empleado.direccion,
+                    cargo_default: empleado.cargo_default,
+                    email: empleado.email ?? '',
+                    telefono: empleado.telefono ?? '',
+                  });
+                  setError(null);
+                  setEditando(true);
+                }}
+                className="text-sm font-medium text-indigo-600 hover:text-indigo-700"
+              >
+                Editar
+              </button>
+            )}
+            <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+              ✕
+            </button>
+          </div>
         </div>
 
         <div className="flex flex-col items-center gap-3">
@@ -296,34 +350,135 @@ function PerfilEmpleadoModal({ empleado, onClose }: { empleado: Empleado; onClos
           {error && <p className="text-sm text-red-600">{error}</p>}
         </div>
 
-        <dl className="grid grid-cols-2 gap-3 text-sm border-t border-gray-100 pt-4">
-          <div className="col-span-2">
-            <dt className="text-gray-400">Nombre completo</dt>
-            <dd className="text-gray-900 font-medium">{empleado.nombre_completo}</dd>
-          </div>
-          <div>
-            <dt className="text-gray-400">DNI</dt>
-            <dd className="text-gray-900">{empleado.dni}</dd>
-          </div>
-          <div>
-            <dt className="text-gray-400">Estado</dt>
-            <dd className="text-gray-900 capitalize">{empleado.estado}</dd>
-          </div>
-          <div className="col-span-2">
-            <dt className="text-gray-400">Cargo</dt>
-            <dd className="text-gray-900">{empleado.cargo_default}</dd>
-          </div>
-          <div className="col-span-2">
-            <dt className="text-gray-400">Dirección</dt>
-            <dd className="text-gray-900">{empleado.direccion}</dd>
-          </div>
-          {empleado.email && (
+        {editando ? (
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              guardarMutation.mutate();
+            }}
+            className="grid grid-cols-2 gap-3 border-t border-gray-100 pt-4"
+          >
             <div className="col-span-2">
-              <dt className="text-gray-400">Email</dt>
-              <dd className="text-gray-900">{empleado.email}</dd>
+              <Field label="Nombre completo">
+                <input
+                  required
+                  className="input"
+                  value={editForm.nombre_completo}
+                  onChange={(e) =>
+                    setEditForm({ ...editForm, nombre_completo: e.target.value.toUpperCase() })
+                  }
+                />
+              </Field>
             </div>
-          )}
-        </dl>
+            <Field label="DNI">
+              <input
+                required
+                className="input"
+                value={editForm.dni}
+                onChange={(e) => setEditForm({ ...editForm, dni: e.target.value })}
+              />
+            </Field>
+            <Field label="Empresa">
+              <input className="input bg-gray-50 text-gray-500" value={empresaActual?.razon_social ?? '—'} disabled />
+            </Field>
+            <div className="col-span-2">
+              <Field label="Cargo">
+                <input
+                  required
+                  className="input"
+                  value={editForm.cargo_default}
+                  onChange={(e) => setEditForm({ ...editForm, cargo_default: e.target.value.toUpperCase() })}
+                />
+              </Field>
+            </div>
+            <div className="col-span-2">
+              <Field label="Dirección">
+                <input
+                  required
+                  className="input"
+                  value={editForm.direccion}
+                  onChange={(e) => setEditForm({ ...editForm, direccion: e.target.value })}
+                />
+              </Field>
+            </div>
+            <Field label="Email (opcional)">
+              <input
+                type="email"
+                className="input"
+                value={editForm.email}
+                onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
+              />
+            </Field>
+            <Field label="Teléfono (opcional)">
+              <input
+                className="input"
+                value={editForm.telefono}
+                onChange={(e) => setEditForm({ ...editForm, telefono: e.target.value })}
+              />
+            </Field>
+
+            {error && <p className="col-span-2 text-sm text-red-600">{error}</p>}
+
+            <div className="col-span-2 flex justify-end gap-2 pt-1">
+              <button
+                type="button"
+                className="px-3 py-1.5 text-sm text-gray-600 hover:text-gray-900"
+                onClick={() => {
+                  setEditando(false);
+                  setError(null);
+                }}
+              >
+                Cancelar
+              </button>
+              <button
+                type="submit"
+                disabled={guardarMutation.isPending}
+                className="px-4 py-1.5 rounded-md bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700 disabled:opacity-50"
+              >
+                {guardarMutation.isPending ? 'Guardando...' : 'Guardar cambios'}
+              </button>
+            </div>
+          </form>
+        ) : (
+          <dl className="grid grid-cols-2 gap-3 text-sm border-t border-gray-100 pt-4">
+            <div className="col-span-2">
+              <dt className="text-gray-400">Nombre completo</dt>
+              <dd className="text-gray-900 font-medium">{empleado.nombre_completo}</dd>
+            </div>
+            <div>
+              <dt className="text-gray-400">DNI</dt>
+              <dd className="text-gray-900">{empleado.dni}</dd>
+            </div>
+            <div>
+              <dt className="text-gray-400">Estado</dt>
+              <dd className="text-gray-900 capitalize">{empleado.estado}</dd>
+            </div>
+            <div className="col-span-2">
+              <dt className="text-gray-400">Empresa</dt>
+              <dd className="text-gray-900">{empresaActual?.razon_social ?? '—'}</dd>
+            </div>
+            <div className="col-span-2">
+              <dt className="text-gray-400">Cargo</dt>
+              <dd className="text-gray-900">{empleado.cargo_default}</dd>
+            </div>
+            <div className="col-span-2">
+              <dt className="text-gray-400">Dirección</dt>
+              <dd className="text-gray-900">{empleado.direccion}</dd>
+            </div>
+            {empleado.email && (
+              <div className="col-span-2">
+                <dt className="text-gray-400">Email</dt>
+                <dd className="text-gray-900">{empleado.email}</dd>
+              </div>
+            )}
+            {empleado.telefono && (
+              <div className="col-span-2">
+                <dt className="text-gray-400">Teléfono</dt>
+                <dd className="text-gray-900">{empleado.telefono}</dd>
+              </div>
+            )}
+          </dl>
+        )}
       </div>
     </div>
   );
