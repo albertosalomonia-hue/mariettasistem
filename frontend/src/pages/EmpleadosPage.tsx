@@ -50,6 +50,7 @@ export function EmpleadosPage() {
   const [form, setForm] = useState(emptyForm);
   const [error, setError] = useState<string | null>(null);
   const [perfilId, setPerfilId] = useState<number | null>(null);
+  const [abrirEditando, setAbrirEditando] = useState(false);
 
   const empresasQuery = useQuery({
     queryKey: ['empresas'],
@@ -188,6 +189,7 @@ export function EmpleadosPage() {
               <th className="px-4 py-2 font-medium">DNI</th>
               <th className="px-4 py-2 font-medium">Cargo</th>
               <th className="px-4 py-2 font-medium">Estado</th>
+              <th className="px-4 py-2 font-medium">Acciones</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
@@ -195,7 +197,10 @@ export function EmpleadosPage() {
               <tr
                 key={emp.id}
                 className="hover:bg-gray-50 cursor-pointer"
-                onClick={() => setPerfilId(emp.id)}
+                onClick={() => {
+                  setAbrirEditando(false);
+                  setPerfilId(emp.id);
+                }}
               >
                 <td className="px-4 py-2 text-gray-900">
                   <div className="flex items-center gap-3">
@@ -214,11 +219,23 @@ export function EmpleadosPage() {
                     {emp.estado}
                   </span>
                 </td>
+                <td className="px-4 py-2">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setAbrirEditando(true);
+                      setPerfilId(emp.id);
+                    }}
+                    className="text-indigo-600 hover:underline font-medium"
+                  >
+                    Editar
+                  </button>
+                </td>
               </tr>
             ))}
             {empleadosQuery.isSuccess && empleadosQuery.data.length === 0 && (
               <tr>
-                <td colSpan={4} className="px-4 py-8 text-center text-gray-400">
+                <td colSpan={5} className="px-4 py-8 text-center text-gray-400">
                   Sin empleados registrados todavía.
                 </td>
               </tr>
@@ -228,18 +245,30 @@ export function EmpleadosPage() {
       </div>
 
       {empleadoPerfil && (
-        <PerfilEmpleadoModal empleado={empleadoPerfil} onClose={() => setPerfilId(null)} />
+        <PerfilEmpleadoModal
+          empleado={empleadoPerfil}
+          initialEditando={abrirEditando}
+          onClose={() => setPerfilId(null)}
+        />
       )}
     </div>
   );
 }
 
-function PerfilEmpleadoModal({ empleado, onClose }: { empleado: Empleado; onClose: () => void }) {
+function PerfilEmpleadoModal({
+  empleado,
+  initialEditando = false,
+  onClose,
+}: {
+  empleado: Empleado;
+  initialEditando?: boolean;
+  onClose: () => void;
+}) {
   const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [error, setError] = useState<string | null>(null);
   const [photoVersion, setPhotoVersion] = useState(0);
-  const [editando, setEditando] = useState(false);
+  const [editando, setEditando] = useState(initialEditando);
   const [editForm, setEditForm] = useState({
     nombre_completo: empleado.nombre_completo,
     dni: empleado.dni,
