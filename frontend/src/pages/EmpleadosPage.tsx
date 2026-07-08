@@ -51,6 +51,7 @@ export function EmpleadosPage() {
   const [error, setError] = useState<string | null>(null);
   const [perfilId, setPerfilId] = useState<number | null>(null);
   const [abrirEditando, setAbrirEditando] = useState(false);
+  const [eliminarPendiente, setEliminarPendiente] = useState<{ id: number; nombre: string } | null>(null);
 
   const empresasQuery = useQuery({
     queryKey: ['empresas'],
@@ -70,6 +71,15 @@ export function EmpleadosPage() {
       setForm(emptyForm);
       setShowForm(false);
       setError(null);
+    },
+    onError: (err) => setError(apiErrorMessage(err)),
+  });
+
+  const eliminarMutation = useMutation({
+    mutationFn: async (id: number) => api.delete(`/empleados/${id}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['empleados'] });
+      setEliminarPendiente(null);
     },
     onError: (err) => setError(apiErrorMessage(err)),
   });
@@ -219,7 +229,7 @@ export function EmpleadosPage() {
                     {emp.estado}
                   </span>
                 </td>
-                <td className="px-4 py-2">
+                <td className="px-4 py-2 space-x-3">
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
@@ -229,6 +239,17 @@ export function EmpleadosPage() {
                     className="text-indigo-600 hover:underline font-medium"
                   >
                     Editar
+                  </button>
+                  <button
+                    disabled={emp.estado === 'cesado'}
+                    title={emp.estado === 'cesado' ? 'Este empleado ya está inactivo' : undefined}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setEliminarPendiente({ id: emp.id, nombre: emp.nombre_completo });
+                    }}
+                    className="text-red-600 hover:underline font-medium disabled:text-gray-300 disabled:no-underline disabled:cursor-not-allowed"
+                  >
+                    Eliminar
                   </button>
                 </td>
               </tr>
@@ -250,6 +271,53 @@ export function EmpleadosPage() {
           initialEditando={abrirEditando}
           onClose={() => setPerfilId(null)}
         />
+      )}
+
+      {eliminarPendiente && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center px-4 z-20">
+          <div className="bg-white rounded-xl p-6 w-full max-w-sm space-y-4 shadow-xl">
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-full bg-red-100 text-red-600 flex items-center justify-center shrink-0">
+                <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" viewBox="0 0 20 20" fill="currentColor">
+                  <path
+                    fillRule="evenodd"
+                    d="M8.257 3.099c.765-1.36 2.72-1.36 3.486 0l6.28 11.164c.75 1.333-.213 2.987-1.743 2.987H3.72c-1.53 0-2.493-1.654-1.743-2.987L8.257 3.1zM10 13a1 1 0 100-2 1 1 0 000 2zm-.75-6.5a.75.75 0 011.5 0v3.5a.75.75 0 01-1.5 0v-3.5z"
+                    clipRule="evenodd"
+                  />
+                </svg>
+              </div>
+              <div>
+                <h3 className="font-medium text-gray-900">Eliminar empleado</h3>
+                <p className="text-sm text-gray-600 mt-1">
+                  ¿Estás seguro de eliminar a <strong>{eliminarPendiente.nombre}</strong>? Quedará marcado como{' '}
+                  <strong>cesado</strong> y ya no podrá usarse para generar nuevos contratos. Esta acción no se
+                  puede deshacer desde aquí.
+                </p>
+              </div>
+            </div>
+
+            {error && <p className="text-sm text-red-600">{error}</p>}
+
+            <div className="flex justify-end gap-2 pt-1">
+              <button
+                className="px-3 py-1.5 text-sm text-gray-600 hover:text-gray-900"
+                onClick={() => {
+                  setEliminarPendiente(null);
+                  setError(null);
+                }}
+              >
+                Cancelar
+              </button>
+              <button
+                disabled={eliminarMutation.isPending}
+                className="px-4 py-1.5 rounded-md bg-red-600 text-white text-sm font-medium hover:bg-red-700 disabled:opacity-50"
+                onClick={() => eliminarMutation.mutate(eliminarPendiente.id)}
+              >
+                {eliminarMutation.isPending ? 'Eliminando...' : 'Sí, eliminar'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
